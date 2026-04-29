@@ -27,14 +27,13 @@ class FilamentScaffoldServiceProvider extends PackageServiceProvider
         $this->publishes([
             __DIR__ . '/../config/filament-scaffold.php' => config_path('filament-scaffold.php'),
         ], 'filament-scaffold-config');
-
     }
 
     public function packageRegistered(): void {}
 
     public function packageBooted(): void
     {
-        // Asset Registration
+        // Asset Registration — empty by default, add CSS/JS assets here if needed in the future
         FilamentAsset::register(
             $this->getAssets(),
             $this->getAssetPackageName()
@@ -54,7 +53,6 @@ class FilamentScaffoldServiceProvider extends PackageServiceProvider
      */
     protected function getAssets(): array
     {
-        return [
-        ];
+        return [];
     }
 }
