@@ -12,8 +12,8 @@ class CreateScaffold extends CreateRecord
 {
     protected static string $resource = ScaffoldResource::class;
 
-    /********************************************
-     * MAKE THE SAVE BUTTON ON 'PAGE' STICKY
+    /**
+     * Make the save button sticky on the page.
      */
     public static bool $formActionsAreSticky = true;
 
