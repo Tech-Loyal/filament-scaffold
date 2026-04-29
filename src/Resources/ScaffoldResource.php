@@ -10,6 +10,7 @@ use Filament\Resources\Resource;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Solutionforest\FilamentScaffold\Resources\ScaffoldResource\Pages;
 
@@ -21,24 +22,12 @@ class ScaffoldResource extends Resource
 {
     protected static ?string $navigationIcon = 'heroicon-o-cube-transparent';
 
-    /********************************************
-     * Group name in the 'navigation bar'
-     * @var string|null
-     */
     protected static ?string $navigationGroup = 'System';
 
-    /********************************************
-     * Plural label for the resource
-     * @var string|null
-     */
     protected static ?string $pluralModelLabel = 'Scaffold';
 
     protected static ?string $navigationLabel = 'Scaffold Manager';
 
-    /********************************************
-     * Singular label for the resource
-     * @var string|null
-     */
     protected static ?string $modelLabel = 'Scaffold';
 
     public static function form(Form $form): Form
@@ -46,9 +35,7 @@ class ScaffoldResource extends Resource
         return $form
             ->schema([
 
-                /********************************************
-                 * TABLE NAME, MODEL NAME, RESOURCE NAME
-                 */
+                // ─── TABLE NAME / MODEL NAME / RESOURCE NAME ───────────────────
                 Forms\Components\Section::make('Table & Resource Information')
                     ->schema([
                         Forms\Components\Grid::make(2)
@@ -97,9 +84,7 @@ class ScaffoldResource extends Resource
                     ])
                     ->columnSpan(2),
 
-                /********************************************
-                 * GENERATION OPTIONS
-                 */
+                // ─── GENERATION OPTIONS ────────────────────────────────────────
                 Forms\Components\Section::make('Generation Options')
                     ->schema([
                         Forms\Components\Checkbox::make('Create Resource')
@@ -121,14 +106,11 @@ class ScaffoldResource extends Resource
                             ->label('Create API')
                             ->default(false)
                             ->hidden(fn () => ! class_exists(\Rupadana\ApiService\ApiService::class)),
-
                     ])
                     ->columns(2)
                     ->columnSpan(1),
 
-                /********************************************
-                 * TABLE STRUCTURE
-                 */
+                // ─── TABLE STRUCTURE ───────────────────────────────────────────
                 Forms\Components\Section::make('Table Structure')
                     ->schema([
                         Forms\Components\Repeater::make('Table')
@@ -142,30 +124,30 @@ class ScaffoldResource extends Resource
                                     ->native(false)
                                     ->searchable()
                                     ->options([
-                                        'string' => 'string',
-                                        'integer' => 'integer',
-                                        'bigInteger' => 'bigInteger',
-                                        'text' => 'text',
-                                        'float' => 'float',
-                                        'double' => 'double',
-                                        'decimal' => 'decimal',
-                                        'boolean' => 'boolean',
-                                        'date' => 'date',
-                                        'time' => 'time',
-                                        'datetime' => 'dateTime',
-                                        'timestamp' => 'timestamp',
-                                        'char' => 'char',
-                                        'mediumText' => 'mediumText',
-                                        'longText' => 'longText',
-                                        'tinyInteger' => 'tinyInteger',
-                                        'smallInteger' => 'smallInteger',
+                                        'string'        => 'string',
+                                        'integer'       => 'integer',
+                                        'bigInteger'    => 'bigInteger',
+                                        'text'          => 'text',
+                                        'float'         => 'float',
+                                        'double'        => 'double',
+                                        'decimal'       => 'decimal',
+                                        'boolean'       => 'boolean',
+                                        'date'          => 'date',
+                                        'time'          => 'time',
+                                        'datetime'      => 'dateTime',
+                                        'timestamp'     => 'timestamp',
+                                        'char'          => 'char',
+                                        'mediumText'    => 'mediumText',
+                                        'longText'      => 'longText',
+                                        'tinyInteger'   => 'tinyInteger',
+                                        'smallInteger'  => 'smallInteger',
                                         'mediumInteger' => 'mediumInteger',
-                                        'json' => 'json',
-                                        'jsonb' => 'jsonb',
-                                        'binary' => 'binary',
-                                        'enum' => 'enum',
-                                        'ipAddress' => 'ipAddress',
-                                        'macAddress' => 'macAddress',
+                                        'json'          => 'json',
+                                        'jsonb'         => 'jsonb',
+                                        'binary'        => 'binary',
+                                        'enum'          => 'enum',
+                                        'ipAddress'     => 'ipAddress',
+                                        'macAddress'    => 'macAddress',
                                     ])
                                     ->default(fn ($record) => $record['type'] ?? 'string')
                                     ->reactive(),
@@ -175,10 +157,10 @@ class ScaffoldResource extends Resource
                                 Forms\Components\Select::make('key')
                                     ->default('')
                                     ->options([
-                                        '' => 'NULL',
+                                        ''        => 'NULL',
                                         'primary' => 'Primary',
-                                        'unique' => 'Unique',
-                                        'index' => 'Index',
+                                        'unique'  => 'Unique',
+                                        'index'   => 'Index',
                                     ])
                                     ->default(fn ($record) => $record['key'] ?? ''),
                                 Forms\Components\TextInput::make('default')
@@ -191,9 +173,7 @@ class ScaffoldResource extends Resource
                     ])
                     ->columnSpan('full'),
 
-                /********************************************
-                 * MIGRATION ADDITIONAL FEATURES
-                 */
+                // ─── MIGRATION ADDITIONAL FEATURES ────────────────────────────
                 Forms\Components\Section::make('Migration Additional Features')
                     ->schema([
                         Forms\Components\Checkbox::make('Created_at & Updated_at')
@@ -211,76 +191,148 @@ class ScaffoldResource extends Resource
             ->columns(3);
     }
 
+    // ─── DATABASE HELPERS ──────────────────────────────────────────────────────
+
+    /**
+     * CAMBIO v4/v5: reemplaza `SHOW TABLES` (MySQL-only) por Schema::getTableListing()
+     * que funciona con MySQL, PostgreSQL y SQLite.
+     */
     public static function getAllTableNames(): array
     {
-        $tables = DB::select('SHOW TABLES');
+        try {
+            // Filament v4 requiere Laravel 11.28+, que incluye Schema::getTableListing()
+            $tables = Schema::getTableListing();
 
-        return array_map('current', $tables);
+            return array_combine($tables, $tables);
+        } catch (\Throwable $e) {
+            // Fallback para compatibilidad con instalaciones antiguas
+            try {
+                $driver = DB::getDriverName();
+
+                if (in_array($driver, ['mysql', 'mariadb'])) {
+                    $rows = DB::select('SHOW TABLES');
+                    $tables = array_map('current', $rows);
+                } elseif ($driver === 'pgsql') {
+                    $rows = DB::select("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+                    $tables = array_column($rows, 'tablename');
+                } elseif ($driver === 'sqlite') {
+                    $rows = DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+                    $tables = array_column($rows, 'name');
+                } else {
+                    $tables = [];
+                }
+
+                return array_combine($tables, $tables);
+            } catch (\Throwable $e2) {
+                Log::warning('FilamentScaffold: No se pudieron obtener las tablas de la base de datos.', [
+                    'error' => $e2->getMessage(),
+                ]);
+
+                return [];
+            }
+        }
     }
 
-    public static function getTableColumns($tableName)
+    /**
+     * CAMBIO v4/v5: reemplaza `SHOW COLUMNS FROM` (MySQL-only) por Schema::getColumns()
+     * disponible en Laravel 10.23+ (incluido en el requisito de Filament v4: Laravel 11.28+).
+     */
+    public static function getTableColumns(string $tableName): array
     {
-        $columns = DB::select('SHOW COLUMNS FROM ' . $tableName);
-        $columnDetails = [];
-
         $typeMapping = [
-            'varchar' => 'string',
-            'int' => 'integer',
-            'bigint' => 'bigInteger',
-            'text' => 'text',
-            'float' => 'float',
-            'double' => 'double',
-            'decimal' => 'decimal',
-            'bool' => 'boolean',
-            'date' => 'date',
-            'time' => 'time',
-            'datetime' => 'dateTime',
-            'timestamp' => 'timestamp',
-            'char' => 'char',
+            'varchar'    => 'string',
+            'int'        => 'integer',
+            'bigint'     => 'bigInteger',
+            'text'       => 'text',
+            'float'      => 'float',
+            'double'     => 'double',
+            'decimal'    => 'decimal',
+            'bool'       => 'boolean',
+            'boolean'    => 'boolean',
+            'tinyint'    => 'tinyInteger',
+            'smallint'   => 'smallInteger',
+            'mediumint'  => 'mediumInteger',
+            'date'       => 'date',
+            'time'       => 'time',
+            'datetime'   => 'dateTime',
+            'timestamp'  => 'timestamp',
+            'char'       => 'char',
             'mediumtext' => 'mediumText',
-            'longtext' => 'longText',
-            'tinyint' => 'tinyInteger',
-            'smallint' => 'smallInteger',
-            'mediumint' => 'mediumInteger',
-            'json' => 'json',
-            'jsonb' => 'jsonb',
-            'binary' => 'binary',
-            'enum' => 'enum',
-            'ipaddress' => 'ipAddress',
+            'longtext'   => 'longText',
+            'json'       => 'json',
+            'jsonb'      => 'jsonb',
+            'binary'     => 'binary',
+            'enum'       => 'enum',
+            'ipaddress'  => 'ipAddress',
             'macaddress' => 'macAddress',
         ];
 
-        $keyMapping = [
-            'PRI' => 'primary',
-            'UNI' => 'unique',
-            'MUL' => 'index',
-        ];
+        $columnDetails = [];
 
-        foreach ($columns as $column) {
-            if ($column->Field === 'id' || $column->Field === 'ID' || $column->Field === 'created_at' || $column->Field === 'updated_at' || $column->Field === 'deleted_at') {
-                continue;
+        try {
+            // Schema::getColumns() — disponible en Laravel 10.23+ (cross-database)
+            $columns = Schema::getColumns($tableName);
+
+            foreach ($columns as $column) {
+                $fieldName = $column['name'];
+
+                if (in_array($fieldName, ['id', 'ID', 'created_at', 'updated_at', 'deleted_at'])) {
+                    continue;
+                }
+
+                // El tipo viene como "varchar(255)" → extraer solo "varchar"
+                $rawType = strtolower(preg_replace('/\(.+\)/', '', $column['type_name'] ?? $column['type'] ?? 'string'));
+                $rawType = preg_split('/\s+/', $rawType)[0];
+                $mappedType = $typeMapping[$rawType] ?? 'string';
+
+                // Schema::getColumns() devuelve 'nullable' como bool directamente
+                $nullable = $column['nullable'] ?? false;
+
+                // No hay mapeo de key en Schema::getColumns() — dejamos vacío por defecto
+                $columnDetails[] = [
+                    'name'     => $fieldName,
+                    'type'     => $mappedType,
+                    'nullable' => (bool) $nullable,
+                    'key'      => '',
+                    'default'  => $column['default'] ?? '',
+                    'comment'  => $column['comment'] ?? '',
+                ];
             }
+        } catch (\Throwable $e) {
+            // Fallback: SHOW COLUMNS para MySQL/MariaDB únicamente
+            try {
+                $columns = DB::select('SHOW COLUMNS FROM ' . $tableName);
 
-            $type = preg_replace('/\(.+\)/', '', $column->Type);
-            $type = preg_split('/\s+/', $type)[0];
+                $keyMapping = ['PRI' => 'primary', 'UNI' => 'unique', 'MUL' => 'index'];
 
-            $key = $column->Key;
+                foreach ($columns as $column) {
+                    if (in_array($column->Field, ['id', 'ID', 'created_at', 'updated_at', 'deleted_at'])) {
+                        continue;
+                    }
 
-            $translatedType = $typeMapping[$type] ?? $type;
-            $translatedKey = $keyMapping[$key] ?? $key;
+                    $type = preg_replace('/\(.+\)/', '', $column->Type);
+                    $type = strtolower(preg_split('/\s+/', $type)[0]);
 
-            $columnDetails[] = [
-                'name' => $column->Field,
-                'type' => $translatedType,
-                'nullable' => $column->Null === 'YES',
-                'key' => $translatedKey,
-                'default' => $column->Default,
-                'comment' => '',
-            ];
+                    $columnDetails[] = [
+                        'name'     => $column->Field,
+                        'type'     => $typeMapping[$type] ?? $type,
+                        'nullable' => $column->Null === 'YES',
+                        'key'      => $keyMapping[$column->Key] ?? '',
+                        'default'  => $column->Default ?? '',
+                        'comment'  => '',
+                    ];
+                }
+            } catch (\Throwable $e2) {
+                Log::error('FilamentScaffold: No se pudieron obtener las columnas de ' . $tableName, [
+                    'error' => $e2->getMessage(),
+                ]);
+            }
         }
 
         return $columnDetails;
     }
+
+    // ─── PAGES ─────────────────────────────────────────────────────────────────
 
     public static function getPages(): array
     {
@@ -289,102 +341,106 @@ class ScaffoldResource extends Resource
         ];
     }
 
-    public static function getFileName($path)
+    // ─── FILE GENERATION ───────────────────────────────────────────────────────
+
+    public static function getFileName(string $path): string
     {
         $normalizedPath = str_replace('\\', '/', $path);
         $fileNameWithExtension = basename($normalizedPath);
-        $fileName = pathinfo($fileNameWithExtension, PATHINFO_FILENAME);
 
-        return $fileName;
+        return pathinfo($fileNameWithExtension, PATHINFO_FILENAME);
     }
 
-    public static function generateFiles(array $data)
+    public static function generateFiles(array $data): void
     {
         $basePath = base_path();
-
         $modelName = self::getFileName($data['Model']);
-
         $resourceName = self::getFileName($data['Resource']);
 
         chdir($basePath);
-        $migrationPath = null;
-        $resourcePath = null;
-        $modelPath = null;
+
+        $migrationPath  = null;
+        $resourcePath   = null;
+        $modelPath      = null;
         $controllerPath = null;
 
-        /********************************************
-         * MIGRATION FILE
-         */
+        // ── MIGRATION ────────────────────────────────────────────────────────
         if ($data['Create Migration']) {
             Artisan::call('make:migration', [
-                'name' => 'create_' . $data['Table Name'] . '_table',
+                'name'             => 'create_' . $data['Table Name'] . '_table',
                 '--no-interaction' => true,
             ]);
             $output = Artisan::output();
-            if (strpos($output, 'Migration') !== false) {
+
+            if (str_contains($output, 'Migration') || str_contains($output, 'migration')) {
                 preg_match('/\[([^\]]+)\]/', $output, $matches);
                 $migrationPath = $matches[1] ?? null;
             }
+
             self::overwriteMigrationFile($migrationPath, $data);
         }
 
+        // ── FACTORY ──────────────────────────────────────────────────────────
         if ($data['Create Factory']) {
             Artisan::call('make:factory', [
-                'name' => $data['Table Name'] . 'Factory',
+                'name'             => $modelName . 'Factory',
                 '--no-interaction' => true,
             ]);
         }
 
-        /********************************************
-         * CREATE MODEL
-         */
+        // ── MODEL ─────────────────────────────────────────────────────────────
         if ($data['Create Model']) {
             Artisan::call('make:model', [
-                'name' => $modelName,
+                'name'             => $modelName,
                 '--no-interaction' => true,
             ]);
             $output = Artisan::output();
-            if (strpos($output, 'Model') !== false) {
+
+            if (str_contains($output, 'Model') || str_contains($output, 'model')) {
                 preg_match('/\[([^\]]+)\]/', $output, $matches);
                 $modelPath = $matches[1] ?? null;
             }
+
             self::overwriteModelFile($modelPath, $data);
         }
 
-        /********************************************
-         * CREATE RESOURCE FILE
-         */
+        // ── RESOURCE ──────────────────────────────────────────────────────────
         if ($data['Create Resource']) {
             $command = [
-                'name' => $resourceName,
-                '--generate' => true,
-                '--view' => true,
-                '--force' => true,
+                'name'             => $resourceName,
+                '--generate'       => true,
+                '--force'          => true,
                 '--no-interaction' => true,
             ];
 
-            /**************************
-             * --simple (modal type)
-             */
+            // CAMBIO v4: --view fue renombrado / eliminado en v4.
+            // En v4 se usa --view-resource o directamente se genera la página View.
+            // Detectamos si la opción existe para mantener compatibilidad.
+            if (self::artisanOptionExists('make:filament-resource', '--view')) {
+                $command['--view'] = true;
+            }
+
             if ($data['Simple Resource']) {
                 $command['--simple'] = true;
             }
 
             Artisan::call('make:filament-resource', $command);
             $output = Artisan::output();
-            preg_match('/\[([^\]]+)\]/', $output, $matches);
-            $resourcePath = $matches[1] ?? null;
-            self::overwriteResourceFile($resourcePath, $data);
+
+            // CAMBIO v4/v5: la nueva estructura de directorios genera el resource dentro
+            // de su propia carpeta (Resources/PostResource/PostResource.php) en lugar de
+            // en la raíz (Resources/PostResource.php). Detectamos ambos casos.
+            $resourcePath = self::detectResourcePath($resourceName, $output);
+
+            self::overwriteResourceFile($resourcePath, $data, $resourceName);
         }
 
-        /********************************************
-         * CREATE CONTROLLER
-         */
+        // ── CONTROLLER ────────────────────────────────────────────────────────
         if ($data['Create Controller']) {
             Artisan::call('make:controller', [
-                'name' => $data['Table Name'] . 'Controller',
-                '--model' => $modelName,
-                '--resource' => true,
+                'name'             => $data['Table Name'] . 'Controller',
+                '--model'          => $modelName,
+                '--resource'       => true,
                 '--no-interaction' => true,
             ]);
             $output = Artisan::output();
@@ -393,29 +449,27 @@ class ScaffoldResource extends Resource
             self::overwriteControllerFile($controllerPath, $data);
         }
 
-        /********************************************
-         * POLICY FILE (For Permissions)
-         */
+        // ── POLICY (FilamentShield) ───────────────────────────────────────────
         if (class_exists(\BezhanSalleh\FilamentShield\FilamentShield::class)) {
             /** @phpstan-ignore-next-line */
             $url = \BezhanSalleh\FilamentShield\Resources\RoleResource::getUrl();
+
             if ($data['Create Policy']) {
                 $modelName = self::getFileName($data['Model']);
                 Artisan::call('make:policy', [
-                    'name' => $modelName . 'Policy',
-                    '--model' => $modelName,
+                    'name'             => $modelName . 'Policy',
+                    '--model'          => $modelName,
                     '--no-interaction' => true,
                 ]);
                 $output = Artisan::output();
-                if (strpos($output, 'Policy') !== false) {
+
+                if (str_contains($output, 'Policy') || str_contains($output, 'policy')) {
                     preg_match('/\[([^\]]+)\]/', $output, $matches);
                     $policyPath = $matches[1] ?? null;
+
                     if ($policyPath) {
                         self::updatePolicyFile($policyPath, $modelName);
-                        // Log::info("Policy file created and updated at: $policyPath");
-                        /********************************************
-                         * SUCCESS NOTIFICATION
-                         */
+
                         Notification::make()
                             ->success()
                             ->persistent()
@@ -435,40 +489,31 @@ class ScaffoldResource extends Resource
                     }
                 }
             }
-        } else {
-            $url = '/default-url';
         }
 
-        /********************************************
-         * EXECUTE THE CREATING OF ROUTE
-         * IF Create Route is Check
-         */
+        // ── ROUTES ────────────────────────────────────────────────────────────
         if ($data['Create Route']) {
-            $controllerName = self::getFileName($controllerPath);
+            $controllerName = $controllerPath ? self::getFileName($controllerPath) : $data['Table Name'] . 'Controller';
             self::addRoutes($data, $controllerName);
         }
 
-        /********************************************
-         * AFTER FILE/DB GENERATION, RUN THIS ARTISAN COMMANDS:
-         */
-        $commands = [
-            'cache:clear',
-            'config:cache',
-            'config:clear',
-            'route:cache',
-            'route:clear',
-            'icons:cache',
-            'filament:cache-components',
-        ];
+        // ── API SERVICE (filament-api-service) ────────────────────────────────
+        if (! empty($data['create_api']) && class_exists(\Rupadana\ApiService\ApiService::class)) {
+            self::generateApiService($data, $resourceName);
+        }
 
+        // ── POST-GENERATION ARTISAN COMMANDS ──────────────────────────────────
+        // CAMBIO v4/v5: 'filament:cache-components' fue reemplazado por 'filament:optimize'
+        // en Filament v4. Detectamos qué comando existe antes de ejecutar.
+        $commands = self::resolvePostCommands();
         $commandErrors = [];
 
         foreach ($commands as $command) {
             $fullCommand = "php artisan $command";
             $descriptorspec = [
-                0 => ['pipe', 'r'], // stdin
-                1 => ['pipe', 'w'], // stdout
-                2 => ['pipe', 'w'],  // stderr
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
             ];
 
             $process = proc_open($fullCommand, $descriptorspec, $pipes, base_path());
@@ -479,159 +524,207 @@ class ScaffoldResource extends Resource
                 fclose($pipes[1]);
                 $error = stream_get_contents($pipes[2]);
                 fclose($pipes[2]);
-                $return_value = proc_close($process);
+                $returnValue = proc_close($process);
 
-                if ($return_value !== 0) {
-                    Log::error("Error running artisan command: $fullCommand", [
-                        'error' => $error,
+                if ($returnValue !== 0) {
+                    Log::warning("FilamentScaffold: El comando '$fullCommand' terminó con código $returnValue", [
+                        'error'  => $error,
                         'output' => $output,
                     ]);
-                    $commandErrors[] = $fullCommand;
+                    // No tratamos todos los errores como fatales (algunos comandos pueden no existir)
                 }
-            }
-        }
-
-        /**
-         * Creates an API using the filament-api-service package if it is installed.
-         * See: https://github.com/rupadana/filament-api-service
-         */
-        if ($data['create_api'] && class_exists(\Rupadana\ApiService\ApiService::class)) {
-            $resourcePath = $data['Resource'] ?? null;
-
-            if ($resourcePath) {
-                $resourceClass = str_replace(['/', '\\'], '\\', $resourcePath);
-                $resourceClass = preg_replace('/^app\\\\/i', 'App\\', $resourceClass);
-                $resourceClassName = class_basename($resourceClass);
-                $apiServiceName = str_replace('Resource', '', $resourceClassName);
-
-                if (class_exists($resourceClass)) {
-                    try {
-                        // default panel ID to skip interactive prompt
-                        $defaultPanelId = \Filament\Facades\Filament::getDefaultPanel()->getId();
-
-                        // API service generator
-                        Artisan::call('make:filament-api-service', [
-                            'resource' => $apiServiceName,
-                            '--panel' => $defaultPanelId,
-                            '--no-interaction' => true,
-                        ]);
-                        $output = Artisan::output();
-
-                        if (str_contains($output, 'created') || str_contains($output, 'generated')) {
-                            Notification::make()
-                                ->success()
-                                ->persistent()
-                                ->title('API Service Created Successfully!')
-                                ->body(new \Illuminate\Support\HtmlString("
-                                    API service has been generated for: <b>{$resourceClassName}</b><br><br>
-                                    Generated files location:<br>
-                                    <b>app/Filament/Resources/{$resourceClassName}/Api</b><br><br>
-                                    <small><pre>" . e($output) . '</pre></small>
-                                '))
-                                ->icon('heroicon-o-code-bracket')
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->warning()
-                                ->persistent()
-                                ->title('API Service Generation Issue')
-                                ->body(new \Illuminate\Support\HtmlString("
-                                    There was an issue generating the API service for: <b>{$resourceClassName}</b><br><br>
-                                    <small><pre>" . e($output) . '</pre></small>
-                                '))
-                                ->icon('heroicon-o-exclamation-triangle')
-                                ->send();
-                        }
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->danger()
-                            ->title('API Service Generation Failed')
-                            ->body('Unexpected error: ' . $e->getMessage())
-                            ->send();
-                    }
-                } else {
-                    Notification::make()
-                        ->danger()
-                        ->title('Resource Class Not Found')
-                        ->body("The class `{$resourceClass}` does not exist. Please generate the resource first.")
-                        ->send();
-                }
-            } else {
-                Notification::make()
-                    ->danger()
-                    ->title('Missing Resource Input')
-                    ->body('The Resource input is required to generate the API service.')
-                    ->send();
             }
         }
 
         if (empty($commandErrors)) {
-
-            /********************************************
-             * SUCCESS NOTIFICATION
-             */
-            // $resourceClickLink = "\\App\\Filament\\Resources\\" . $resourceName;
             Notification::make()
                 ->success()
                 ->persistent()
                 ->title('Scaffold created')
                 ->body('The scaffold resource has been created successfully.')
                 ->icon('heroicon-o-cube-transparent')
-                // ->actions([
-                //     \Filament\Notifications\Actions\Action::make('view')
-                //         ->button()
-                //         ->url(class_exists($resourceClickLink) ? $resourceClickLink::getUrl() : '#', shouldOpenInNewTab: true),
-                //     \Filament\Notifications\Actions\Action::make('close')
-                //         ->color('gray')
-                //         ->close(),
-                // ])
                 ->send();
         } else {
-            /********************************************
-             * ERROR
-             */
             Notification::make()
                 ->title('Error running commands')
                 ->body('Check logs for more details.')
                 ->danger()
                 ->send();
         }
-
     }
 
-    public static function overwriteResourceFile($resourceFile, $data)
+    // ─── PATH DETECTION (v3 / v4 / v5) ────────────────────────────────────────
+
+    /**
+     * NUEVO en el fork v4/v5:
+     * Filament v4 cambió la estructura de directorios por defecto.
+     *
+     * v3: app/Filament/Resources/PostResource.php
+     * v4: app/Filament/Resources/PostResource/PostResource.php
+     *
+     * Intentamos obtener el path desde el output de Artisan y, si no viene,
+     * probamos las rutas posibles en el sistema de archivos.
+     */
+    protected static function detectResourcePath(string $resourceName, string $artisanOutput): ?string
     {
+        // Primero intentamos extraer del output de Artisan (forma más confiable)
+        preg_match('/\[([^\]]+)\]/', $artisanOutput, $matches);
+
+        if (! empty($matches[1]) && file_exists($matches[1])) {
+            return $matches[1];
+        }
+
+        // Rutas candidatas en orden de prioridad
+        $candidates = [
+            // v4 nueva estructura: dentro de su propia carpeta
+            app_path("Filament/Resources/{$resourceName}/{$resourceName}.php"),
+            // v3 estructura clásica (también funciona en v4 con FileGenerationFlag)
+            app_path("Filament/Resources/{$resourceName}.php"),
+        ];
+
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * NUEVO en el fork v4/v5:
+     * Detecta si un comando Artisan soporta una opción específica.
+     * Usado para verificar si --view sigue existiendo en make:filament-resource.
+     */
+    protected static function artisanOptionExists(string $command, string $option): bool
+    {
+        try {
+            $app = app();
+            $artisan = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+            /** @phpstan-ignore-next-line */
+            $cmd = $artisan->all()[$command] ?? null;
+
+            if ($cmd === null) {
+                return false;
+            }
+
+            return $cmd->getDefinition()->hasOption(ltrim($option, '-'));
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * NUEVO en el fork v4/v5:
+     * Resuelve los comandos post-generación según la versión de Filament instalada.
+     * - filament:cache-components  → v3
+     * - filament:optimize          → v4/v5
+     *
+     * @return array<string>
+     */
+    protected static function resolvePostCommands(): array
+    {
+        $base = [
+            'cache:clear',
+            'config:cache',
+            'config:clear',
+            'route:cache',
+            'route:clear',
+            'icons:cache',
+        ];
+
+        // Detectar comando filament correcto
+        try {
+            $app = app();
+            $artisan = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+            /** @phpstan-ignore-next-line */
+            $all = $artisan->all();
+
+            if (isset($all['filament:optimize'])) {
+                // Filament v4/v5
+                $base[] = 'filament:optimize';
+            } elseif (isset($all['filament:cache-components'])) {
+                // Filament v3
+                $base[] = 'filament:cache-components';
+            }
+        } catch (\Throwable) {
+            // Si no podemos detectar, no ejecutamos ninguno de los dos
+        }
+
+        return $base;
+    }
+
+    // ─── RESOURCE FILE OVERWRITE ───────────────────────────────────────────────
+
+    /**
+     * CAMBIO v4/v5: En Filament v4, por defecto el form y la table
+     * se generan en clases Schema separadas (si no se usa FileGenerationFlag::EMBEDDED_*).
+     * Este método detecta si hay Schema classes y las modifica también.
+     */
+    public static function overwriteResourceFile(?string $resourceFile, array $data, string $resourceName): void
+    {
+        if (! $resourceFile || ! file_exists($resourceFile)) {
+            Log::warning("FilamentScaffold: No se encontró el archivo de resource en: $resourceFile");
+
+            return;
+        }
+
         $modelName = self::getFileName($data['Model']);
+        $content = file_get_contents($resourceFile);
 
-        if (file_exists($resourceFile)) {
-            $content = file_get_contents($resourceFile);
+        $formSchema  = self::generateFormSchema($data);
+        $tableSchema = self::generateTableSchema($data);
 
-            $formSchema = self::generateFormSchema($data);
-            $tableSchema = self::generateTableSchema($data);
-            $useClassChange = <<<EOD
-                use App\\Models\\$modelName;
-                EOD;
+        // ── Actualizar la referencia al Model ─────────────────────────────────
+        $useClassChange = "use App\\Models\\{$modelName};";
+        $classChange    = "protected static ?string \$model = {$modelName}::class;";
 
-            $classChange = <<<EOD
-                protected static ?string \$model = $modelName::class;
-                EOD;
+        $content = preg_replace('/use\s+App\\\\Models\\\\.*?;/s', $useClassChange, $content);
+        $content = preg_replace('/protected static\s+\?string\s+\$model\s*=\s*[^\;]+;/s', $classChange, $content);
 
+        // ── Detectar si es estructura v4 con Schema classes separadas ─────────
+        $resourceDir = dirname($resourceFile);
+        $schemaDir = $resourceDir . '/Schemas';
+
+        // Filament v4 genera: Resources/PostResource/Schemas/PostSchema.php (form + infolist)
+        // y tablas en:        Resources/PostResource/Tables/PostTable.php (si EMBEDDED_PANEL_RESOURCE_TABLES no está)
+        $hasSchemaDir = is_dir($schemaDir);
+        $schemaFile   = $schemaDir . "/{$resourceName}Schema.php";
+        $hasSchema    = file_exists($schemaFile);
+
+        $tableDir  = $resourceDir . '/Tables';
+        $tableFile = $tableDir . "/{$resourceName}Table.php";
+        $hasTable  = file_exists($tableFile);
+
+        if ($hasSchema) {
+            // ── v4 con Schema class separada: reescribir el Schema ─────────────
+            self::overwriteSchemaFile($schemaFile, $data, $modelName, $formSchema);
+        } else {
+            // ── v3 / v4 embedded: modificar form() directamente en el resource ─
             $formFunction = <<<EOD
                 public static function form(Form \$form): Form
                     {
                         return \$form
                             ->schema([
-                                $formSchema
+                                {$formSchema}
                             ]);
                     }
                 EOD;
 
+            $content = preg_replace('/public static function form.*?\{.*?\}/s', $formFunction, $content);
+        }
+
+        if ($hasTable) {
+            // ── v4 con Table class separada ───────────────────────────────────
+            self::overwriteTableClassFile($tableFile, $data, $tableSchema);
+        } else {
+            // ── v3 / v4 embedded: modificar table() directamente en el resource ─
             $tableFunction = <<<EOD
                 public static function table(Table \$table): Table
                     {
                         return \$table
                             ->columns([
-                                $tableSchema
+                                {$tableSchema}
                             ])
                             ->filters([
                                 //
@@ -648,62 +741,171 @@ class ScaffoldResource extends Resource
                     }
                 EOD;
 
-            $content = preg_replace('/use\s+App\\\\Models\\\\.*?;/s', $useClassChange, $content);
-            $content = preg_replace('/protected static\s+\?string\s+\$model\s*=\s*[^\;]+;/s', $classChange, $content);
-            $content = preg_replace('/public static function form.*?{.*?}/s', $formFunction, $content);
-            $content = preg_replace('/public static function table.*?{.*?}/s', $tableFunction, $content);
-
-            file_put_contents($resourceFile, $content);
+            $content = preg_replace('/public static function table.*?\{.*?\}/s', $tableFunction, $content);
         }
+
+        file_put_contents($resourceFile, $content);
     }
 
-    public static function generateFormSchema($data)
+    /**
+     * NUEVO en el fork v4/v5:
+     * Reescribe el archivo Schema separado que genera Filament v4.
+     * Ejemplo: app/Filament/Resources/PostResource/Schemas/PostSchema.php
+     */
+    protected static function overwriteSchemaFile(string $schemaFile, array $data, string $modelName, string $formSchema): void
+    {
+        if (! file_exists($schemaFile)) {
+            return;
+        }
+
+        $content = file_get_contents($schemaFile);
+
+        // El método en los Schema de v4 se llama schema() o form() dependiendo del tipo
+        // Filament v4 genera: public function schema(): array { return [...]; }
+        $schemaMethod = <<<EOD
+            public function schema(): array
+                {
+                    return [
+                        {$formSchema}
+                    ];
+                }
+            EOD;
+
+        // Reemplazar el método schema() si existe
+        if (str_contains($content, 'public function schema()')) {
+            $content = preg_replace('/public function schema\(\).*?\{.*?\}/s', $schemaMethod, $content);
+        } elseif (str_contains($content, 'public static function schema()')) {
+            $schemaMethod = str_replace('public function', 'public static function', $schemaMethod);
+            $content = preg_replace('/public static function schema\(\).*?\{.*?\}/s', $schemaMethod, $content);
+        }
+
+        file_put_contents($schemaFile, $content);
+    }
+
+    /**
+     * NUEVO en el fork v4/v5:
+     * Reescribe el archivo Table class separado que genera Filament v4.
+     * Ejemplo: app/Filament/Resources/PostResource/Tables/PostTable.php
+     */
+    protected static function overwriteTableClassFile(string $tableFile, array $data, string $tableSchema): void
+    {
+        if (! file_exists($tableFile)) {
+            return;
+        }
+
+        $content = file_get_contents($tableFile);
+
+        $tableMethod = <<<EOD
+            public function table(Table \$table): Table
+                {
+                    return \$table
+                        ->columns([
+                            {$tableSchema}
+                        ])
+                        ->filters([
+                            //
+                        ])
+                        ->actions([
+                            Tables\Actions\ViewAction::make(),
+                            Tables\Actions\EditAction::make(),
+                        ])
+                        ->bulkActions([
+                            Tables\Actions\BulkActionGroup::make([
+                                Tables\Actions\DeleteBulkAction::make(),
+                            ]),
+                        ]);
+                }
+            EOD;
+
+        $content = preg_replace('/public function table.*?\{.*?\}/s', $tableMethod, $content);
+        file_put_contents($tableFile, $content);
+    }
+
+    // ─── FORM & TABLE SCHEMA GENERATORS ───────────────────────────────────────
+
+    public static function generateFormSchema(array $data): string
     {
         $fields = [];
+
         foreach ($data['Table'] as $column) {
-            $fields[] = "Forms\Components\TextInput::make('{$column['name']}')->required()";
+            $name = $column['name'];
+            $type = $column['type'] ?? 'string';
+
+            $field = match (true) {
+                in_array($type, ['boolean'])
+                    => "Forms\\Components\\Toggle::make('{$name}')",
+                in_array($type, ['text', 'mediumText', 'longText'])
+                    => "Forms\\Components\\Textarea::make('{$name}')->columnSpanFull()",
+                in_array($type, ['date'])
+                    => "Forms\\Components\\DatePicker::make('{$name}')",
+                in_array($type, ['datetime', 'timestamp'])
+                    => "Forms\\Components\\DateTimePicker::make('{$name}')",
+                default
+                    => "Forms\\Components\\TextInput::make('{$name}')" . (($column['nullable'] ?? false) ? '' : '->required()'),
+            };
+
+            $fields[] = $field;
         }
 
-        return implode(",\n", $fields);
+        return implode(",\n                                ", $fields);
     }
 
-    public static function generateTableSchema($data)
+    public static function generateTableSchema(array $data): string
     {
         $columns = [];
+
         foreach ($data['Table'] as $column) {
-            $columns[] = "Tables\Columns\TextColumn::make('{$column['name']}')->sortable()->searchable()";
+            $name = $column['name'];
+            $type = $column['type'] ?? 'string';
+
+            $col = match (true) {
+                in_array($type, ['boolean'])
+                    => "Tables\\Columns\\IconColumn::make('{$name}')->boolean()",
+                in_array($type, ['date', 'datetime', 'timestamp'])
+                    => "Tables\\Columns\\TextColumn::make('{$name}')->dateTime()->sortable()",
+                default
+                    => "Tables\\Columns\\TextColumn::make('{$name}')->sortable()->searchable()",
+            };
+
+            $columns[] = $col;
         }
 
-        return implode(",\n", $columns);
+        return implode(",\n                                ", $columns);
     }
 
-    public static function overwriteMigrationFile($filePath, $data)
+    // ─── MIGRATION FILE ────────────────────────────────────────────────────────
+
+    public static function overwriteMigrationFile(?string $filePath, array $data): void
     {
-        if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
-
-            $upPart = self::generateUp($data);
-            $upFunction = <<<EOD
-                public function up(): void
-                    {
-                        Schema::create('{$data['Table Name']}', function (Blueprint \$table) {
-                            \$table->id();
-                            $upPart;
-                    }
-                EOD;
-
-            $downFunction = <<<EOD
-                public function down()
-                    {
-                        Schema::dropIfExists('{$data['Table Name']}');
-                    }
-                EOD;
-
-            $content = preg_replace('/public function up.*?{.*?}/s', $upFunction, $content);
-            $content = preg_replace('/public function down.*?{.*?}/s', $downFunction, $content);
-
-            file_put_contents($filePath, $content);
+        if (! $filePath || ! file_exists($filePath)) {
+            return;
         }
+
+        $content = file_get_contents($filePath);
+        $upPart = self::generateUp($data);
+
+        $upFunction = <<<EOD
+            public function up(): void
+                {
+                    Schema::create('{$data['Table Name']}', function (Blueprint \$table) {
+                        \$table->id();
+                        {$upPart};
+                    });
+                }
+            EOD;
+
+        $downFunction = <<<EOD
+            public function down(): void
+                {
+                    Schema::dropIfExists('{$data['Table Name']}');
+                }
+            EOD;
+
+        $content = preg_replace('/public function up.*?\{.*?\}/s', $upFunction, $content);
+        $content = preg_replace('/public function down.*?\{.*?\}/s', $downFunction, $content);
+
+        file_put_contents($filePath, $content);
+
         if ($data['Run Migrate'] == true) {
             Artisan::call('migrate');
         }
@@ -724,7 +926,7 @@ class ScaffoldResource extends Resource
             $fields[] = '$table->softDeletes()';
         }
 
-        return implode(";\n", $fields);
+        return implode(";\n                        ", $fields);
     }
 
     private static function generateColumnDefinition(array $column): string
@@ -733,19 +935,20 @@ class ScaffoldResource extends Resource
 
         $methods = [
             'nullable' => fn (): bool => $column['nullable'] ?? false,
-            'default' => fn (): ?string => $column['default'] ?? null,
-            'comment' => fn (): ?string => $column['comment'] ?? null,
-            'key' => fn (): ?string => $column['key'] ?? null,
+            'default'  => fn (): ?string => ($column['default'] !== null && $column['default'] !== '') ? $column['default'] : null,
+            'comment'  => fn (): ?string => ($column['comment'] !== null && $column['comment'] !== '') ? $column['comment'] : null,
+            'key'      => fn (): ?string => ($column['key'] !== null && $column['key'] !== '') ? $column['key'] : null,
         ];
 
         foreach ($methods as $method => $condition) {
             $value = $condition();
+
             if ($value !== null && $value !== false) {
                 $definition .= match ($method) {
                     'nullable' => '->nullable()',
-                    'default' => "->default('{$value}')",
-                    'comment' => "->comment('{$value}')",
-                    'key' => "->{$value}()",
+                    'default'  => "->default('{$value}')",
+                    'comment'  => "->comment('{$value}')",
+                    'key'      => "->{$value}()",
                 };
             }
         }
@@ -753,161 +956,216 @@ class ScaffoldResource extends Resource
         return $definition;
     }
 
-    public static function overwriteModelFile($filePath, $data)
+    // ─── MODEL FILE ────────────────────────────────────────────────────────────
+
+    public static function overwriteModelFile(?string $filePath, array $data): void
     {
-        $column = self::getColumn($data);
-
-        if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
-            $useSoftDel = <<<EOD
-                use Illuminate\Database\Eloquent\Model;
-                use Illuminate\Database\Eloquent\SoftDeletes;
-                EOD;
-
-            $chooseTable = <<<EOD
-                use HasFactory;
-                    protected \$table = '{$data['Table Name']}';
-                    protected \$fillable = $column;
-                EOD;
-
-            $withSoftdel = <<<EOD
-                use HasFactory;
-                    use SoftDeletes;
-                    protected \$table = '{$data['Table Name']}';
-                    protected \$fillable = $column;
-                EOD;
-
-            if ($data['Soft Delete'] == true) {
-                $content = preg_replace('/use Illuminate\\\\Database\\\\Eloquent\\\\Model;/s', $useSoftDel, $content);
-                $content = preg_replace('/use HasFactory;/s', $withSoftdel, $content);
-            } else {
-                $content = preg_replace('/use HasFactory;/s', $chooseTable, $content);
-            }
-            file_put_contents($filePath, $content);
+        if (! $filePath || ! file_exists($filePath)) {
+            return;
         }
+
+        $column = self::getColumn($data);
+        $content = file_get_contents($filePath);
+
+        if ($data['Soft Delete'] == true) {
+            $useSoftDel = "use Illuminate\\Database\\Eloquent\\Model;\nuse Illuminate\\Database\\Eloquent\\SoftDeletes;";
+            $withSoftdel = "use HasFactory;\n    use SoftDeletes;\n    protected \$table = '{$data['Table Name']}';\n    protected \$fillable = {$column};";
+
+            $content = preg_replace('/use Illuminate\\\\Database\\\\Eloquent\\\\Model;/s', $useSoftDel, $content);
+            $content = preg_replace('/use HasFactory;/s', $withSoftdel, $content);
+        } else {
+            $chooseTable = "use HasFactory;\n    protected \$table = '{$data['Table Name']}';\n    protected \$fillable = {$column};";
+            $content = preg_replace('/use HasFactory;/s', $chooseTable, $content);
+        }
+
+        file_put_contents($filePath, $content);
     }
 
-    public static function getColumn($data)
+    public static function getColumn(array $data): string
     {
-        $fields = [];
-        foreach ($data['Table'] as $column) {
-            $fields[] = "{$column['name']}";
-        }
+        $fields = array_column($data['Table'], 'name');
 
         return "['" . implode("','", $fields) . "']";
     }
 
-    public static function overwriteControllerFile($filePath, $data)
-    {
-        if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
-            $changeIndex = <<<'EOD'
-                public function index()
-                    {
-                        return 'This your index page';
-                    }
-                EOD;
+    // ─── CONTROLLER FILE ───────────────────────────────────────────────────────
 
-            $content = preg_replace('/public function index.*?{.*?}/s', $changeIndex, $content);
-            file_put_contents($filePath, $content);
+    public static function overwriteControllerFile(?string $filePath, array $data): void
+    {
+        if (! $filePath || ! file_exists($filePath)) {
+            return;
         }
 
+        $content = file_get_contents($filePath);
+
+        $changeIndex = <<<'EOD'
+            public function index()
+                {
+                    return 'This your index page';
+                }
+            EOD;
+
+        $content = preg_replace('/public function index.*?\{.*?\}/s', $changeIndex, $content);
+        file_put_contents($filePath, $content);
     }
 
-    /********************************************
-     * GENERATE ROUTE, IF ALLOWED
-     */
-    public static function addRoutes($data, $controllerName)
+    // ─── ROUTES ────────────────────────────────────────────────────────────────
+
+    public static function addRoutes(array $data, string $controllerName): void
     {
-        $filePath = base_path('routes\web.php');
-        if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
-            $useStatement = <<<EOD
-                use Illuminate\Support\Facades\Route;
-                use App\Http\Controllers\\$controllerName;
-                EOD;
+        // Soporte para rutas en Windows (backslash) y Unix (slash)
+        $webPhp = base_path('routes/web.php');
 
-            $addRoute = <<<EOD
-
-                Route::resource('{$data['Table Name']}', {$controllerName}::class)->only([
-                    'index', 'show'
-                ]);
-                EOD;
-
-            $content = preg_replace('/use Illuminate\\\\Support\\\\Facades\\\\Route;/s', $useStatement, $content);
-            $content .= $addRoute;
-
-            file_put_contents($filePath, $content);
+        if (! file_exists($webPhp)) {
+            $webPhp = base_path('routes\\web.php');
         }
+
+        if (! file_exists($webPhp)) {
+            return;
+        }
+
+        $content = file_get_contents($webPhp);
+
+        $useStatement = "use Illuminate\\Support\\Facades\\Route;\nuse App\\Http\\Controllers\\{$controllerName};";
+        $addRoute = "\n\nRoute::resource('{$data['Table Name']}', {$controllerName}::class)->only([\n    'index', 'show'\n]);";
+
+        $content = preg_replace('/use Illuminate\\\\Support\\\\Facades\\\\Route;/s', $useStatement, $content);
+        $content .= $addRoute;
+
+        file_put_contents($webPhp, $content);
     }
 
-    /********************************************
-     * CREATE POLICY FILE, IF THERE'S A FilamentShield
-     */
-    public static function updatePolicyFile($filePath, $modelName)
-    {
+    // ─── POLICY FILE (FilamentShield) ──────────────────────────────────────────
 
-        // --- Check if FilamentShield is installed
+    public static function updatePolicyFile(string $filePath, string $modelName): void
+    {
         if (! class_exists(\BezhanSalleh\FilamentShield\FilamentShield::class)) {
             return;
         }
 
-        if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
+        if (! file_exists($filePath)) {
+            return;
+        }
 
-            $modelFunctionNameVariable = Str::snake(Str::plural($modelName));
-            $permissionBase = Str::of($modelName)
-                ->afterLast('\\')
-                ->snake()
-                ->replace('_', '::');
+        $content = file_get_contents($filePath);
 
-            $methodTemplates = [
-                'import_data' => "return \$user->can('import_data_{$permissionBase}');",
-                'download_template_file' => "return \$user->can('download_template_file_{$permissionBase}');",
-                'viewAny' => "return \$user->can('view_any_{$permissionBase}');",
-                'view' => "return \$user->can('view_{$permissionBase}');",
-                'create' => "return \$user->can('create_{$permissionBase}');",
-                'update' => "return \$user->can('update_{$permissionBase}');",
-                'delete' => "return \$user->can('delete_{$permissionBase}');",
-                'deleteAny' => "return \$user->can('delete_any_{$permissionBase}');",
-                'restore' => "return \$user->can('restore_{$permissionBase}');",
-                'restoreAny' => "return \$user->can('restore_any_{$permissionBase}');",
-                'forceDelete' => "return \$user->can('force_delete_{$permissionBase}');",
-                'forceDeleteAny' => "return \$user->can('force_delete_any_{$permissionBase}');",
-                'replicate' => "return \$user->can('replicate_{$permissionBase}');",
-                'reorder' => "return \$user->can('reorder_{$permissionBase}');",
-            ];
+        $modelFunctionNameVariable = Str::snake(Str::plural($modelName));
+        $permissionBase = Str::of($modelName)
+            ->afterLast('\\')
+            ->snake()
+            ->replace('_', '::');
 
-            $newMethods = '';
-            foreach ($methodTemplates as $method => $returnStatement) {
-                $methodSignature = "public function {$method}(User \$user" .
-                    (
-                        in_array($method, ['viewAny', 'create', 'deleteAny', 'restoreAny', 'forceDeleteAny', 'reorder', 'import_data', 'download_template_file'])
-                        ? ''
-                        : ", {$modelName} \${$modelFunctionNameVariable}"
-                    ) .
-                    '): bool';
+        $methodTemplates = [
+            'import_data'            => "return \$user->can('import_data_{$permissionBase}');",
+            'download_template_file' => "return \$user->can('download_template_file_{$permissionBase}');",
+            'viewAny'                => "return \$user->can('view_any_{$permissionBase}');",
+            'view'                   => "return \$user->can('view_{$permissionBase}');",
+            'create'                 => "return \$user->can('create_{$permissionBase}');",
+            'update'                 => "return \$user->can('update_{$permissionBase}');",
+            'delete'                 => "return \$user->can('delete_{$permissionBase}');",
+            'deleteAny'              => "return \$user->can('delete_any_{$permissionBase}');",
+            'restore'                => "return \$user->can('restore_{$permissionBase}');",
+            'restoreAny'             => "return \$user->can('restore_any_{$permissionBase}');",
+            'forceDelete'            => "return \$user->can('force_delete_{$permissionBase}');",
+            'forceDeleteAny'         => "return \$user->can('force_delete_any_{$permissionBase}');",
+            'replicate'              => "return \$user->can('replicate_{$permissionBase}');",
+            'reorder'                => "return \$user->can('reorder_{$permissionBase}');",
+        ];
 
-                $methodBody = "    {\n        {$returnStatement}\n    }";
+        $noModelMethods = [
+            'viewAny', 'create', 'deleteAny', 'restoreAny',
+            'forceDeleteAny', 'reorder', 'import_data', 'download_template_file',
+        ];
 
-                $fullMethod = "\n\n    {$methodSignature}\n{$methodBody}";
+        $newMethods = '';
 
-                // --- Check if the method already exists
-                if (strpos($content, "public function {$method}(") === false) {
-                    // Method doesn't exist, add it to newMethods
-                    $newMethods .= $fullMethod;
-                } else {
-                    // --- Method exists, update it
-                    $pattern = "/public function {$method}\([^\)]*\): bool\n\s*{\n.*?\n\s*}/s";
-                    $replacement = "{$methodSignature}\n{$methodBody}";
-                    $content = preg_replace($pattern, $replacement, $content);
-                }
+        foreach ($methodTemplates as $method => $returnStatement) {
+            $hasModel       = ! in_array($method, $noModelMethods);
+            $modelParam     = $hasModel ? ", {$modelName} \${$modelFunctionNameVariable}" : '';
+            $methodSignature = "public function {$method}(User \$user{$modelParam}): bool";
+            $methodBody     = "    {\n        {$returnStatement}\n    }";
+            $fullMethod     = "\n\n    {$methodSignature}\n{$methodBody}";
+
+            if (! str_contains($content, "public function {$method}(")) {
+                $newMethods .= $fullMethod;
+            } else {
+                $pattern     = "/public function {$method}\([^\)]*\): bool\n\s*{\n.*?\n\s*}/s";
+                $replacement = "{$methodSignature}\n{$methodBody}";
+                $content     = preg_replace($pattern, $replacement, $content);
             }
+        }
 
-            // --- Add new methods inside the class
-            $content = preg_replace('/}(\s*)$/', $newMethods . "\n}", $content);
+        $content = preg_replace('/}(\s*)$/', $newMethods . "\n}", $content);
+        file_put_contents($filePath, $content);
+    }
 
-            file_put_contents($filePath, $content);
+    // ─── API SERVICE (filament-api-service) ────────────────────────────────────
+
+    protected static function generateApiService(array $data, string $resourceName): void
+    {
+        $resourcePath = $data['Resource'] ?? null;
+
+        if (! $resourcePath) {
+            Notification::make()
+                ->danger()
+                ->title('Missing Resource Input')
+                ->body('The Resource input is required to generate the API service.')
+                ->send();
+
+            return;
+        }
+
+        $resourceClass = str_replace(['/', '\\'], '\\', $resourcePath);
+        $resourceClass = preg_replace('/^app\\\\/i', 'App\\', $resourceClass);
+        $resourceClassName = class_basename($resourceClass);
+        $apiServiceName = str_replace('Resource', '', $resourceClassName);
+
+        if (! class_exists($resourceClass)) {
+            Notification::make()
+                ->danger()
+                ->title('Resource Class Not Found')
+                ->body("The class `{$resourceClass}` does not exist. Please generate the resource first.")
+                ->send();
+
+            return;
+        }
+
+        try {
+            $defaultPanelId = \Filament\Facades\Filament::getDefaultPanel()->getId();
+
+            Artisan::call('make:filament-api-service', [
+                'resource'         => $apiServiceName,
+                '--panel'          => $defaultPanelId,
+                '--no-interaction' => true,
+            ]);
+            $output = Artisan::output();
+
+            if (str_contains($output, 'created') || str_contains($output, 'generated')) {
+                Notification::make()
+                    ->success()
+                    ->persistent()
+                    ->title('API Service Created Successfully!')
+                    ->body(new \Illuminate\Support\HtmlString("
+                        API service generated for: <b>{$resourceClassName}</b><br>
+                        Location: <b>app/Filament/Resources/{$resourceClassName}/Api</b>
+                    "))
+                    ->icon('heroicon-o-code-bracket')
+                    ->send();
+            } else {
+                Notification::make()
+                    ->warning()
+                    ->persistent()
+                    ->title('API Service Generation Issue')
+                    ->body(new \Illuminate\Support\HtmlString("<small><pre>" . e($output) . "</pre></small>"))
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->send();
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->danger()
+                ->title('API Service Generation Failed')
+                ->body('Unexpected error: ' . $e->getMessage())
+                ->send();
         }
     }
 }
